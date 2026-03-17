@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, memo, useMemo } from 'react';
+import React, { useState, useEffect, useRef, memo } from 'react';
 import { Heart, Sparkles, ArrowRight, ArrowLeft, Star } from 'lucide-react';
 
 const IMAGES = [
@@ -9,43 +9,53 @@ const IMAGES = [
   '/images/img5.jpg'
 ];
 
-// ─── Pre-compute ALL random values ONCE at module load (never recalculated) ───
+// ── Detect mobile once ──
+const IS_MOBILE = typeof window !== 'undefined' && window.innerWidth < 768;
 
-const PARTICLES = Array.from({ length: 25 }, (_, i) => ({
+// ── Pre-compute random values ONCE at module load ──
+// Mobile gets far fewer elements
+const PARTICLE_COUNT  = IS_MOBILE ? 8  : 25;
+const HEART_COUNT     = IS_MOBILE ? 6  : 15;
+const STAR_COUNT      = IS_MOBILE ? 6  : 15;
+const SPARKLE_COUNT   = IS_MOBILE ? 0  : 20; // skip on mobile entirely
+const BURST_COUNT     = IS_MOBILE ? 40 : 80;
+
+const PARTICLES = Array.from({ length: PARTICLE_COUNT }, (_, i) => ({
   id: i,
   left: `${Math.random() * 100}%`,
-  top: `${Math.random() * 100}%`,
-  delay: `${Math.random() * 5}s`,
+  top:  `${Math.random() * 100}%`,
+  delay:    `${Math.random() * 5}s`,
   duration: `${4 + Math.random() * 8}s`,
   size: `${4 + Math.random() * 6}px`,
 }));
 
-const FALL_HEARTS = Array.from({ length: 15 }, (_, i) => ({
+const FALL_HEARTS = Array.from({ length: HEART_COUNT }, (_, i) => ({
   id: i,
-  left: `${Math.random() * 100}%`,
-  delay: `${Math.random() * 10}s`,
+  left:     `${Math.random() * 100}%`,
+  delay:    `${Math.random() * 10}s`,
   duration: `${7 + Math.random() * 5}s`,
-  size: Math.random() * 18 + 10,
-  color: ['#ff6b9d', '#c44569', '#ff1493', '#ff69b4', '#ffc0cb'][Math.floor(Math.random() * 5)],
+  size:     Math.random() * 14 + 8,
+  color:    ['#ff6b9d','#c44569','#ff1493','#ff69b4','#ffc0cb'][Math.floor(Math.random() * 5)],
 }));
 
-const STARS_DATA = Array.from({ length: 15 }, (_, i) => ({
+const STARS_DATA = Array.from({ length: STAR_COUNT }, (_, i) => ({
   id: i,
-  left: `${Math.random() * 100}%`,
-  top: `${Math.random() * 100}%`,
-  delay: `${Math.random() * 3}s`,
+  left:     `${Math.random() * 100}%`,
+  top:      `${Math.random() * 100}%`,
+  delay:    `${Math.random() * 3}s`,
   duration: `${2 + Math.random() * 3}s`,
-  size: Math.random() * 10 + 6,
+  size:     Math.random() * 8 + 5,
 }));
 
-const SPARKLES_DATA = Array.from({ length: 20 }, (_, i) => ({
+const SPARKLES_DATA = Array.from({ length: SPARKLE_COUNT }, (_, i) => ({
   id: i,
-  left: `${Math.random() * 100}%`,
-  top: `${Math.random() * 100}%`,
+  left:  `${Math.random() * 100}%`,
+  top:   `${Math.random() * 100}%`,
   delay: `${Math.random() * 4}s`,
 }));
 
-// ─── Decorative components defined OUTSIDE — never re-created on render ───
+// ── Decorative components — outside main component, memo-wrapped ──
+// will-change: transform forces GPU compositing on mobile
 
 const FloatingParticles = memo(() => (
   <div className="floating-particles">
@@ -54,6 +64,7 @@ const FloatingParticles = memo(() => (
         left: p.left, top: p.top,
         animationDelay: p.delay, animationDuration: p.duration,
         width: p.size, height: p.size,
+        willChange: 'transform, opacity',
       }} />
     ))}
   </div>
@@ -63,7 +74,10 @@ const FallingHearts = memo(() => (
   <div className="falling-hearts">
     {FALL_HEARTS.map(h => (
       <Heart key={h.id} className="falling-heart" size={h.size} fill="currentColor"
-        style={{ left: h.left, animationDelay: h.delay, animationDuration: h.duration, color: h.color }} />
+        style={{
+          left: h.left, animationDelay: h.delay, animationDuration: h.duration,
+          color: h.color, willChange: 'transform, opacity',
+        }} />
     ))}
   </div>
 ));
@@ -72,7 +86,11 @@ const FloatingStars = memo(() => (
   <div className="floating-stars">
     {STARS_DATA.map(s => (
       <Star key={s.id} className="floating-star" size={s.size} fill="currentColor"
-        style={{ left: s.left, top: s.top, animationDelay: s.delay, animationDuration: s.duration }} />
+        style={{
+          left: s.left, top: s.top,
+          animationDelay: s.delay, animationDuration: s.duration,
+          willChange: 'transform, opacity',
+        }} />
     ))}
   </div>
 ));
@@ -81,20 +99,19 @@ const MagicalSparkles = memo(() => (
   <div className="magical-sparkles">
     {SPARKLES_DATA.map(s => (
       <div key={s.id} className="sparkle"
-        style={{ left: s.left, top: s.top, animationDelay: s.delay }} />
+        style={{ left: s.left, top: s.top, animationDelay: s.delay, willChange: 'transform, opacity' }} />
     ))}
   </div>
 ));
 
-// ─── Main component ───
-
+// ── Main component ──
 const BirthdaySurprise = () => {
   const [showMusicPrompt, setShowMusicPrompt] = useState(true);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [typewriterText, setTypewriterText] = useState('');
-  const [heartBurst, setHeartBurst] = useState(false);
-  const [burstHearts, setBurstHearts] = useState([]);
-  const [showContent, setShowContent] = useState(false);
+  const [currentPage, setCurrentPage]         = useState(0);
+  const [typewriterText, setTypewriterText]   = useState('');
+  const [heartBurst, setHeartBurst]           = useState(false);
+  const [burstHearts, setBurstHearts]         = useState([]);
+  const [showContent, setShowContent]         = useState(false);
   const audioRef = useRef(null);
 
   const messages = [
@@ -107,11 +124,11 @@ const BirthdaySurprise = () => {
 
   const calculateLifetime = () => {
     const birthDate = new Date('2006-03-17T00:00:00');
-    const now = new Date();
+    const now  = new Date();
     const diff = now - birthDate;
-    const years = Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
-    const days = Math.floor((diff % (1000 * 60 * 60 * 24 * 365.25)) / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const years   = Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
+    const days    = Math.floor((diff % (1000 * 60 * 60 * 24 * 365.25)) / (1000 * 60 * 60 * 24));
+    const hours   = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
     const seconds = Math.floor((diff % (1000 * 60)) / 1000);
     return { years, days, hours, minutes, seconds };
@@ -139,20 +156,21 @@ const BirthdaySurprise = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Typewriter — only runs when currentPage or typewriterText changes
+  // Typewriter — slightly slower on mobile to reduce re-render pressure
+  const TYPEWRITER_SPEED = IS_MOBILE ? 55 : 40;
   useEffect(() => {
     if (currentPage > 0 && currentPage <= 5) {
       const message = messages[currentPage - 1];
       if (message && typewriterText.length < message.length) {
         const timeout = setTimeout(() => {
           setTypewriterText(message.slice(0, typewriterText.length + 1));
-        }, 40);
+        }, TYPEWRITER_SPEED);
         return () => clearTimeout(timeout);
       }
     }
   }, [currentPage, typewriterText]);
 
-  // Page change — scroll to top + reset
+  // Page change
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
     setTypewriterText('');
@@ -161,35 +179,35 @@ const BirthdaySurprise = () => {
     return () => clearTimeout(timeout);
   }, [currentPage]);
 
-  // Pre-compute burst hearts once with useMemo when heartBurst triggers
   const handleHeartClick = () => {
     setHeartBurst(true);
-    // Reduced to 80 hearts — still looks great, much less DOM
-    const hearts = Array.from({ length: 80 }, (_, i) => ({
-      id: i,
-      x: Math.random() * 100,
-      y: Math.random() * 100,
-      delay: Math.random() * 0.8,
+    const hearts = Array.from({ length: BURST_COUNT }, (_, i) => ({
+      id:       i,
+      x:        Math.random() * 100,
+      y:        Math.random() * 100,
+      delay:    Math.random() * 0.8,
       duration: 1.5 + Math.random() * 2.5,
-      size: 16 + Math.random() * 16,
-      color: ['#ff6b9d', '#c44569', '#ff1493', '#ff69b4'][Math.floor(Math.random() * 4)],
+      size:     14 + Math.random() * 14,
+      color:    ['#ff6b9d','#c44569','#ff1493','#ff69b4'][Math.floor(Math.random() * 4)],
     }));
     setBurstHearts(hearts);
   };
 
-  const nextPage = () => {
-    if (currentPage < 6) { setCurrentPage(p => p + 1); setHeartBurst(false); }
-  };
-  const prevPage = () => {
-    if (currentPage > 0) { setCurrentPage(p => p - 1); setHeartBurst(false); }
-  };
+  const nextPage = () => { if (currentPage < 6) { setCurrentPage(p => p + 1); setHeartBurst(false); } };
+  const prevPage = () => { if (currentPage > 0) { setCurrentPage(p => p - 1); setHeartBurst(false); } };
 
-  // Single persistent audio node — never unmounts
+  // Single persistent audio — never unmounts
   const alwaysMountedAudio = (
     <audio ref={audioRef} loop preload="auto" style={{ display: 'none' }}>
       <source src="/love.mp3" type="audio/mpeg" />
     </audio>
   );
+
+  // ── Glass card style — NO backdrop-filter on mobile (very expensive) ──
+  const glassStyle = IS_MOBILE ? {
+    background: 'rgba(30, 10, 40, 0.85)',
+    border: '1px solid rgba(255,182,193,0.3)',
+  } : {};
 
   // ── Music Prompt ──
   if (showMusicPrompt) {
@@ -200,7 +218,7 @@ const BirthdaySurprise = () => {
         <FallingHearts />
         <div className="music-prompt-content">
           <div className="music-icon-wrapper">
-            <Heart size={100} className="music-heart-icon" fill="currentColor" />
+            <Heart size={IS_MOBILE ? 70 : 100} className="music-heart-icon" fill="currentColor" />
             <div className="music-pulse-ring"></div>
           </div>
           <h2 className="music-prompt-title">Tap Anywhere to Begin 💖</h2>
@@ -218,7 +236,7 @@ const BirthdaySurprise = () => {
         <FloatingParticles />
         <FallingHearts />
         <FloatingStars />
-        <MagicalSparkles />
+        {!IS_MOBILE && <MagicalSparkles />}
         <div className="gradient-overlay"></div>
         <div className="radial-glow"></div>
         <div className="landing-content">
@@ -231,7 +249,7 @@ const BirthdaySurprise = () => {
             For Someone<br />
             <span className="title-highlight">Truly Extraordinary</span>
           </h1>
-          <div className="glass-card lifetime-card">
+          <div className="glass-card lifetime-card" style={glassStyle}>
             <div className="lifetime-numbers">
               <div className="number-block"><span className="number">{lifetime.years}</span><span className="label">Years</span></div>
               <div className="number-block"><span className="number">{lifetime.days}</span><span className="label">Days</span></div>
@@ -264,17 +282,17 @@ const BirthdaySurprise = () => {
         <FloatingParticles />
         <FallingHearts />
         <FloatingStars />
-        <MagicalSparkles />
+        {!IS_MOBILE && <MagicalSparkles />}
         <div className="gradient-overlay"></div>
         <div className="radial-glow"></div>
 
         <div className="nav-buttons">
           {currentPage > 1 && (
-            <button onClick={prevPage} className="nav-btn nav-prev glass-card">
+            <button onClick={prevPage} className="nav-btn nav-prev glass-card" style={glassStyle}>
               <ArrowLeft size={20} /><span>Previous</span>
             </button>
           )}
-          <button onClick={nextPage} className="nav-btn nav-next glass-card">
+          <button onClick={nextPage} className="nav-btn nav-next glass-card" style={glassStyle}>
             <span>{currentPage === 5 ? 'Grand Finale' : 'Continue'}</span>
             <ArrowRight size={20} />
             <div className="button-glow"></div>
@@ -287,7 +305,12 @@ const BirthdaySurprise = () => {
               <div className="image-frame">
                 <div className="frame-glow"></div>
                 <div className="image-wrapper">
-                  <img src={IMAGES[imageIndex]} alt={`Memory ${imageIndex + 1}`} className="showcase-image" loading="eager" />
+                  <img
+                    src={IMAGES[imageIndex]}
+                    alt={`Memory ${imageIndex + 1}`}
+                    className="showcase-image"
+                    loading="eager"
+                  />
                   <div className="image-overlay"></div>
                 </div>
                 <div className="corner-ornament corner-tl"></div>
@@ -308,7 +331,7 @@ const BirthdaySurprise = () => {
                   {currentPage === 5 && "Forever Grateful"}
                 </h2>
               </div>
-              <div className="glass-card message-card">
+              <div className="glass-card message-card" style={glassStyle}>
                 <div className="card-decoration"></div>
                 <p className="message-text">
                   {typewriterText}
@@ -344,11 +367,11 @@ const BirthdaySurprise = () => {
       <FloatingParticles />
       <FallingHearts />
       <FloatingStars />
-      <MagicalSparkles />
+      {!IS_MOBILE && <MagicalSparkles />}
       <div className="gradient-overlay"></div>
       <div className="radial-glow finale-glow"></div>
 
-      <button onClick={prevPage} className="back-button glass-card">
+      <button onClick={prevPage} className="back-button glass-card" style={glassStyle}>
         <ArrowLeft size={20} /><span>Back</span>
       </button>
 
@@ -362,34 +385,36 @@ const BirthdaySurprise = () => {
           </div>
 
           {/* Enlarged photo grid */}
-          <div className="gallery-section-compact" style={{ width: '100%', padding: '0 8px' }}>
+          <div style={{ width: '100%', padding: '0 8px' }}>
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: '16px',
+              gridTemplateColumns: IS_MOBILE ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)',
+              gap: '12px',
               width: '100%',
               maxWidth: '720px',
               margin: '0 auto',
             }}>
               {IMAGES.map((img, idx) => (
                 <div key={idx} style={{
-                  borderRadius: '18px',
+                  borderRadius: '16px',
                   overflow: 'hidden',
-                  boxShadow: '0 10px 30px rgba(255, 105, 180, 0.4)',
-                  border: '2.5px solid rgba(255, 182, 193, 0.55)',
+                  boxShadow: '0 8px 24px rgba(255,105,180,0.35)',
+                  border: '2px solid rgba(255,182,193,0.5)',
                   position: 'relative',
-                  height: '200px',
+                  height: IS_MOBILE ? '140px' : '200px',
                 }}>
-                  <img src={img} alt={`Memory ${idx + 1}`}
+                  <img
+                    src={img}
+                    alt={`Memory ${idx + 1}`}
                     style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                     loading="eager"
                   />
                   <div style={{
-                    position: 'absolute', bottom: '8px', right: '10px',
-                    background: 'rgba(255,105,180,0.75)', color: '#fff',
-                    borderRadius: '50%', width: '24px', height: '24px',
+                    position: 'absolute', bottom: '6px', right: '8px',
+                    background: 'rgba(255,105,180,0.8)', color: '#fff',
+                    borderRadius: '50%', width: '22px', height: '22px',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '12px', fontWeight: 'bold', backdropFilter: 'blur(4px)',
+                    fontSize: '11px', fontWeight: 'bold',
                   }}>{idx + 1}</div>
                 </div>
               ))}
@@ -402,7 +427,7 @@ const BirthdaySurprise = () => {
             </p>
           </div>
 
-          {/* Heart burst — text always in DOM, fades in-place */}
+          {/* Heart burst */}
           <div className="heart-burst-container-compact">
             <button onClick={handleHeartClick} disabled={heartBurst} className="burst-button-compact">
               <Heart className={`burst-heart-compact ${heartBurst ? 'bursted' : ''}`} fill="currentColor" />
@@ -421,11 +446,12 @@ const BirthdaySurprise = () => {
                   animationDelay: `${heart.delay}s`,
                   animationDuration: `${heart.duration}s`,
                   color: heart.color,
+                  willChange: 'transform, opacity',
                 }}
               />
             ))}
 
-            {/* Always rendered, fades in on click — no layout shift */}
+            {/* Always in DOM — fades in-place, zero layout shift */}
             <div style={{
               marginTop: '14px',
               height: '56px',
