@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, memo, useMemo } from 'react';
 import { Heart, Sparkles, ArrowRight, ArrowLeft, Star } from 'lucide-react';
 
 const IMAGES = [
@@ -8,6 +8,85 @@ const IMAGES = [
   '/images/img4.jpg',
   '/images/img5.jpg'
 ];
+
+// ─── Pre-compute ALL random values ONCE at module load (never recalculated) ───
+
+const PARTICLES = Array.from({ length: 25 }, (_, i) => ({
+  id: i,
+  left: `${Math.random() * 100}%`,
+  top: `${Math.random() * 100}%`,
+  delay: `${Math.random() * 5}s`,
+  duration: `${4 + Math.random() * 8}s`,
+  size: `${4 + Math.random() * 6}px`,
+}));
+
+const FALL_HEARTS = Array.from({ length: 15 }, (_, i) => ({
+  id: i,
+  left: `${Math.random() * 100}%`,
+  delay: `${Math.random() * 10}s`,
+  duration: `${7 + Math.random() * 5}s`,
+  size: Math.random() * 18 + 10,
+  color: ['#ff6b9d', '#c44569', '#ff1493', '#ff69b4', '#ffc0cb'][Math.floor(Math.random() * 5)],
+}));
+
+const STARS_DATA = Array.from({ length: 15 }, (_, i) => ({
+  id: i,
+  left: `${Math.random() * 100}%`,
+  top: `${Math.random() * 100}%`,
+  delay: `${Math.random() * 3}s`,
+  duration: `${2 + Math.random() * 3}s`,
+  size: Math.random() * 10 + 6,
+}));
+
+const SPARKLES_DATA = Array.from({ length: 20 }, (_, i) => ({
+  id: i,
+  left: `${Math.random() * 100}%`,
+  top: `${Math.random() * 100}%`,
+  delay: `${Math.random() * 4}s`,
+}));
+
+// ─── Decorative components defined OUTSIDE — never re-created on render ───
+
+const FloatingParticles = memo(() => (
+  <div className="floating-particles">
+    {PARTICLES.map(p => (
+      <div key={p.id} className="particle" style={{
+        left: p.left, top: p.top,
+        animationDelay: p.delay, animationDuration: p.duration,
+        width: p.size, height: p.size,
+      }} />
+    ))}
+  </div>
+));
+
+const FallingHearts = memo(() => (
+  <div className="falling-hearts">
+    {FALL_HEARTS.map(h => (
+      <Heart key={h.id} className="falling-heart" size={h.size} fill="currentColor"
+        style={{ left: h.left, animationDelay: h.delay, animationDuration: h.duration, color: h.color }} />
+    ))}
+  </div>
+));
+
+const FloatingStars = memo(() => (
+  <div className="floating-stars">
+    {STARS_DATA.map(s => (
+      <Star key={s.id} className="floating-star" size={s.size} fill="currentColor"
+        style={{ left: s.left, top: s.top, animationDelay: s.delay, animationDuration: s.duration }} />
+    ))}
+  </div>
+));
+
+const MagicalSparkles = memo(() => (
+  <div className="magical-sparkles">
+    {SPARKLES_DATA.map(s => (
+      <div key={s.id} className="sparkle"
+        style={{ left: s.left, top: s.top, animationDelay: s.delay }} />
+    ))}
+  </div>
+));
+
+// ─── Main component ───
 
 const BirthdaySurprise = () => {
   const [showMusicPrompt, setShowMusicPrompt] = useState(true);
@@ -45,24 +124,22 @@ const BirthdaySurprise = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Play audio — audioRef always points to the one persistent <audio> in the DOM
   const forcePlayMusic = () => {
     const audio = audioRef.current;
     if (audio) {
       audio.volume = 0.6;
       audio.play()
         .then(() => setShowMusicPrompt(false))
-        .catch((err) => console.log('Need user interaction:', err));
+        .catch(err => console.log('Need user interaction:', err));
     }
   };
 
-  // Try autoplay on mount
   useEffect(() => {
     const timer = setTimeout(forcePlayMusic, 300);
     return () => clearTimeout(timer);
   }, []);
 
-  // Typewriter effect
+  // Typewriter — only runs when currentPage or typewriterText changes
   useEffect(() => {
     if (currentPage > 0 && currentPage <= 5) {
       const message = messages[currentPage - 1];
@@ -75,7 +152,7 @@ const BirthdaySurprise = () => {
     }
   }, [currentPage, typewriterText]);
 
-  // Reset on page change + scroll to top
+  // Page change — scroll to top + reset
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
     setTypewriterText('');
@@ -84,83 +161,30 @@ const BirthdaySurprise = () => {
     return () => clearTimeout(timeout);
   }, [currentPage]);
 
+  // Pre-compute burst hearts once with useMemo when heartBurst triggers
   const handleHeartClick = () => {
     setHeartBurst(true);
-    const hearts = Array.from({ length: 200 }, (_, i) => ({
+    // Reduced to 80 hearts — still looks great, much less DOM
+    const hearts = Array.from({ length: 80 }, (_, i) => ({
       id: i,
       x: Math.random() * 100,
       y: Math.random() * 100,
       delay: Math.random() * 0.8,
       duration: 1.5 + Math.random() * 2.5,
-      size: 16 + Math.random() * 16
+      size: 16 + Math.random() * 16,
+      color: ['#ff6b9d', '#c44569', '#ff1493', '#ff69b4'][Math.floor(Math.random() * 4)],
     }));
     setBurstHearts(hearts);
   };
 
   const nextPage = () => {
-    if (currentPage < 6) { setCurrentPage(currentPage + 1); setHeartBurst(false); }
+    if (currentPage < 6) { setCurrentPage(p => p + 1); setHeartBurst(false); }
   };
-
   const prevPage = () => {
-    if (currentPage > 0) { setCurrentPage(currentPage - 1); setHeartBurst(false); }
+    if (currentPage > 0) { setCurrentPage(p => p - 1); setHeartBurst(false); }
   };
 
-  // Decorative components
-  const FloatingParticles = () => (
-    <div className="floating-particles">
-      {[...Array(50)].map((_, i) => (
-        <div key={i} className="particle" style={{
-          left: `${Math.random() * 100}%`, top: `${Math.random() * 100}%`,
-          animationDelay: `${Math.random() * 5}s`, animationDuration: `${4 + Math.random() * 8}s`,
-          width: `${4 + Math.random() * 6}px`, height: `${4 + Math.random() * 6}px`,
-        }} />
-      ))}
-    </div>
-  );
-
-  const FallingHearts = () => (
-    <div className="falling-hearts">
-      {[...Array(30)].map((_, i) => (
-        <Heart key={i} className="falling-heart" size={Math.random() * 18 + 10} fill="currentColor"
-          style={{
-            left: `${Math.random() * 100}%`,
-            animationDelay: `${Math.random() * 10}s`,
-            animationDuration: `${7 + Math.random() * 5}s`,
-            color: ['#ff6b9d', '#c44569', '#ff1493', '#ff69b4', '#ffc0cb'][Math.floor(Math.random() * 5)]
-          }} />
-      ))}
-    </div>
-  );
-
-  const FloatingStars = () => (
-    <div className="floating-stars">
-      {[...Array(25)].map((_, i) => (
-        <Star key={i} className="floating-star" size={Math.random() * 10 + 6} fill="currentColor"
-          style={{
-            left: `${Math.random() * 100}%`, top: `${Math.random() * 100}%`,
-            animationDelay: `${Math.random() * 3}s`, animationDuration: `${2 + Math.random() * 3}s`,
-          }} />
-      ))}
-    </div>
-  );
-
-  const MagicalSparkles = () => (
-    <div className="magical-sparkles">
-      {[...Array(40)].map((_, i) => (
-        <div key={i} className="sparkle" style={{
-          left: `${Math.random() * 100}%`, top: `${Math.random() * 100}%`,
-          animationDelay: `${Math.random() * 4}s`,
-        }} />
-      ))}
-    </div>
-  );
-
-  // ─────────────────────────────────────────────────────────────────
-  // KEY FIX: The <audio> is rendered HERE, at the top level of the
-  // component — OUTSIDE every conditional return. React will keep it
-  // mounted for the full lifetime of the component, so it never
-  // gets destroyed when the page changes and music keeps playing.
-  // ─────────────────────────────────────────────────────────────────
+  // Single persistent audio node — never unmounts
   const alwaysMountedAudio = (
     <audio ref={audioRef} loop preload="auto" style={{ display: 'none' }}>
       <source src="/love.mp3" type="audio/mpeg" />
@@ -263,7 +287,7 @@ const BirthdaySurprise = () => {
               <div className="image-frame">
                 <div className="frame-glow"></div>
                 <div className="image-wrapper">
-                  <img src={IMAGES[imageIndex]} alt={`Memory ${imageIndex + 1}`} className="showcase-image" />
+                  <img src={IMAGES[imageIndex]} alt={`Memory ${imageIndex + 1}`} className="showcase-image" loading="eager" />
                   <div className="image-overlay"></div>
                 </div>
                 <div className="corner-ornament corner-tl"></div>
@@ -356,32 +380,16 @@ const BirthdaySurprise = () => {
                   position: 'relative',
                   height: '200px',
                 }}>
-                  <img
-                    src={img}
-                    alt={`Memory ${idx + 1}`}
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                      display: 'block',
-                    }}
+                  <img src={img} alt={`Memory ${idx + 1}`}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                    loading="eager"
                   />
-                  {/* number badge */}
                   <div style={{
-                    position: 'absolute',
-                    bottom: '8px',
-                    right: '10px',
-                    background: 'rgba(255,105,180,0.75)',
-                    color: '#fff',
-                    borderRadius: '50%',
-                    width: '24px',
-                    height: '24px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                    backdropFilter: 'blur(4px)',
+                    position: 'absolute', bottom: '8px', right: '10px',
+                    background: 'rgba(255,105,180,0.75)', color: '#fff',
+                    borderRadius: '50%', width: '24px', height: '24px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '12px', fontWeight: 'bold', backdropFilter: 'blur(4px)',
                   }}>{idx + 1}</div>
                 </div>
               ))}
@@ -394,11 +402,13 @@ const BirthdaySurprise = () => {
             </p>
           </div>
 
+          {/* Heart burst — text always in DOM, fades in-place */}
           <div className="heart-burst-container-compact">
             <button onClick={handleHeartClick} disabled={heartBurst} className="burst-button-compact">
               <Heart className={`burst-heart-compact ${heartBurst ? 'bursted' : ''}`} fill="currentColor" />
               {!heartBurst && <div className="heart-glow-compact"></div>}
             </button>
+
             {heartBurst && burstHearts.map(heart => (
               <Heart
                 key={heart.id}
@@ -410,12 +420,12 @@ const BirthdaySurprise = () => {
                   '--burst-y': `${(heart.y - 50) * 8}px`,
                   animationDelay: `${heart.delay}s`,
                   animationDuration: `${heart.duration}s`,
-                  color: ['#ff6b9d', '#c44569', '#ff1493', '#ff69b4'][Math.floor(Math.random() * 4)]
+                  color: heart.color,
                 }}
               />
             ))}
 
-            {/* Always in DOM — fixed height so layout never shifts on click */}
+            {/* Always rendered, fades in on click — no layout shift */}
             <div style={{
               marginTop: '14px',
               height: '56px',
@@ -433,6 +443,7 @@ const BirthdaySurprise = () => {
               <p className="final-signature-compact" style={{ margin: 0 }}>- From someone who loves you deeply</p>
             </div>
           </div>
+
         </div>
       </div>
     </div>
